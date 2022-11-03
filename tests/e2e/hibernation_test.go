@@ -107,7 +107,8 @@ var _ = Describe("Cluster Hibernation with plugin", func() {
 		verifySummaryInHibernationStatus := func(clusterName string, message hibernateSatusMessage) {
 			statusOut := getHibernationStatusInJSON(namespace, clusterName)
 			actualStatus := statusOut[string(summaryInStatus)].(map[string]interface{})["status"].(string)
-			Expect(strings.Contains(string(message), actualStatus)).Should(BeEquivalentTo(true), statusOut)
+			Expect(strings.Contains(string(message), actualStatus)).Should(BeEquivalentTo(true),
+				actualStatus+"\\not-contained-in\\"+string(message))
 		}
 		verifyClusterResources := func(namespace, clusterName string, roles []utils.PVCRole) {
 			By(fmt.Sprintf("verifying cluster resources are removed "+
@@ -281,6 +282,9 @@ var _ = Describe("Cluster Hibernation with plugin", func() {
 				Expect(err).ToNot(HaveOccurred())
 				AssertCreateCluster(namespace, clusterName, sampleFileClusterWithPGWalVolume, env)
 				assertHibernation(namespace, clusterName, tableName)
+				// force a panic, save the world
+				array := []string{}
+				Expect(array[1]).To(Equal("kaboom"))
 			})
 		})
 		When("cluster setup without PG-WAL volume", func() {
