@@ -282,9 +282,6 @@ var _ = Describe("Cluster Hibernation with plugin", func() {
 				Expect(err).ToNot(HaveOccurred())
 				AssertCreateCluster(namespace, clusterName, sampleFileClusterWithPGWalVolume, env)
 				assertHibernation(namespace, clusterName, tableName)
-				// force a panic, save the world
-				array := []string{}
-				Expect(array[1]).To(Equal("kaboom"))
 			})
 		})
 		When("cluster setup without PG-WAL volume", func() {
