@@ -232,7 +232,7 @@ func AssertClusterIsReady(namespace string, clusterName string, timeout int, env
 			func() string {
 				cluster := testsUtils.PrintClusterResources(namespace, clusterName, env)
 				nodes, _ := env.DescribeKubernetesNodes()
-				operatorLogLines := 20
+				operatorLogLines := 200
 				var operatorLogs string
 				lines, err := env.DumpOperatorLogs(false, operatorLogLines)
 				if err == nil {
@@ -240,8 +240,15 @@ func AssertClusterIsReady(namespace string, clusterName string, timeout int, env
 				} else {
 					operatorLogs = fmt.Sprintf("Failed getting the latest operator logs: %v\n", err)
 				}
-				return fmt.Sprintf("CLUSTER STATE\n%s\n\nK8S NODES\n%s\n\nOPERATOR LOGS\n%s",
-					cluster, nodes, operatorLogs)
+				var operatorLogsPre string
+				linesPre, err := env.DumpOperatorLogs(true, operatorLogLines)
+				if err == nil {
+					operatorLogsPre = strings.Join(linesPre, "\n")
+				} else {
+					operatorLogsPre = fmt.Sprintf("Failed getting the PRE operator logs: %v\n", err)
+				}
+				return fmt.Sprintf("CLUSTER STATE\n%s\n\nK8S NODES\n%s\n\nOPERATOR LOGS\n%s\n\nPRE OPERATOR LOGS\n%s",
+					cluster, nodes, operatorLogs, operatorLogsPre)
 			})
 		GinkgoWriter.Println("Cluster ready, took", time.Since(start))
 	})
