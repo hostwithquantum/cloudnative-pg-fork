@@ -130,6 +130,9 @@ func (env TestingEnvironment) DumpOperatorLogs(getPrevious bool, requestedLineLe
 	}
 
 	filename := "out/operator_report_" + pod.Name + ".log"
+	if getPrevious {
+		filename = "out/operator_report_previous_" + pod.Name + ".log"
+	}
 	f, err := os.Create(filepath.Clean(filename))
 	if err != nil {
 		fmt.Println(err)

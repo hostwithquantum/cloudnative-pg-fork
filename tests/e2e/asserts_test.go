@@ -221,6 +221,16 @@ func AssertClusterIsReady(namespace string, clusterName string, timeout int, env
 			if err != nil {
 				return "", err
 			}
+			operatorLogLines := 5
+			var operatorLogs string
+			lines, err := env.DumpOperatorLogs(false, operatorLogLines)
+			if err == nil {
+				operatorLogs = strings.Join(lines, "\n")
+			} else {
+				operatorLogs = fmt.Sprintf("Failed getting the latest operator logs: %v\n", err)
+			}
+			GinkgoWriter.Printf("LATEST %d OPERATOR LOGS - %s\n%s",
+				operatorLogLines, time.Now().UTC().Format(time.RFC3339), operatorLogs)
 			if cluster.Spec.Instances == utils.CountReadyPods(podList.Items) {
 				err = env.Client.Get(env.Ctx, namespacedName, cluster)
 				return cluster.Status.Phase, err
@@ -240,15 +250,8 @@ func AssertClusterIsReady(namespace string, clusterName string, timeout int, env
 				} else {
 					operatorLogs = fmt.Sprintf("Failed getting the latest operator logs: %v\n", err)
 				}
-				var operatorLogsPre string
-				linesPre, err := env.DumpOperatorLogs(true, operatorLogLines)
-				if err == nil {
-					operatorLogsPre = strings.Join(linesPre, "\n")
-				} else {
-					operatorLogsPre = fmt.Sprintf("Failed getting the PRE operator logs: %v\n", err)
-				}
-				return fmt.Sprintf("CLUSTER STATE\n%s\n\nK8S NODES\n%s\n\nOPERATOR LOGS\n%s\n\nPRE OPERATOR LOGS\n%s",
-					cluster, nodes, operatorLogs, operatorLogsPre)
+				return fmt.Sprintf("CLUSTER STATE\n%s\n\nK8S NODES\n%s\n\nOPERATOR LOGS\n%s",
+					cluster, nodes, operatorLogs)
 			})
 		GinkgoWriter.Println("Cluster ready, took", time.Since(start))
 	})
