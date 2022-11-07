@@ -229,7 +229,7 @@ func AssertClusterIsReady(namespace string, clusterName string, timeout int, env
 			} else {
 				operatorLogs = fmt.Sprintf("Failed getting the latest operator logs: %v\n", err)
 			}
-			GinkgoWriter.Printf("LATEST %d OPERATOR LOGS - %s\n%s",
+			GinkgoWriter.Printf("LATEST %d OPERATOR LOGS - %s\n%s\n",
 				operatorLogLines, time.Now().UTC().Format(time.RFC3339), operatorLogs)
 			if cluster.Spec.Instances == utils.CountReadyPods(podList.Items) {
 				err = env.Client.Get(env.Ctx, namespacedName, cluster)
