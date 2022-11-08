@@ -17,6 +17,8 @@ limitations under the License.
 package e2e
 
 import (
+	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -215,22 +217,24 @@ func AssertClusterIsReady(namespace string, clusterName string, timeout int, env
 			g.Expect(err).ToNot(HaveOccurred())
 		}).Should(Succeed())
 
+		// start recording operator logs, dump them if the spec fails
+		var buf bytes.Buffer
+		go func() {
+			_ = env.TailOperatorLogs(context.TODO(), &buf)
+		}()
+		DeferCleanup(func(ctx SpecContext) {
+			if CurrentSpecReport().Failed() {
+				GinkgoWriter.Println("DUMPING Operator Logs. Failed Spec:", CurrentSpecReport().LeafNodeText)
+				_, _ = buf.WriteTo(GinkgoWriter)
+			}
+		})
+
 		start := time.Now()
 		Eventually(func() (string, error) {
 			podList, err := env.GetClusterPodList(namespace, clusterName)
 			if err != nil {
 				return "", err
 			}
-			operatorLogLines := 5
-			var operatorLogs string
-			lines, err := env.DumpOperatorLogs(false, operatorLogLines)
-			if err == nil {
-				operatorLogs = strings.Join(lines, "\n")
-			} else {
-				operatorLogs = fmt.Sprintf("Failed getting the latest operator logs: %v\n", err)
-			}
-			GinkgoWriter.Printf("LATEST %d OPERATOR LOGS - %s\n%s\n",
-				operatorLogLines, time.Now().UTC().Format(time.RFC3339), operatorLogs)
 			if cluster.Spec.Instances == utils.CountReadyPods(podList.Items) {
 				err = env.Client.Get(env.Ctx, namespacedName, cluster)
 				return cluster.Status.Phase, err
@@ -238,20 +242,12 @@ func AssertClusterIsReady(namespace string, clusterName string, timeout int, env
 			return fmt.Sprintf("Ready pod is not as expected. Spec Instances: %d, ready pods: %d \n",
 				cluster.Spec.Instances,
 				utils.CountReadyPods(podList.Items)), nil
-		}, timeout, 10).Should(BeEquivalentTo(apiv1.PhaseHealthy),
+		}, 2, 2).Should(BeEquivalentTo(apiv1.PhaseHealthy),
 			func() string {
 				cluster := testsUtils.PrintClusterResources(namespace, clusterName, env)
 				nodes, _ := env.DescribeKubernetesNodes()
-				operatorLogLines := 200
-				var operatorLogs string
-				lines, err := env.DumpOperatorLogs(false, operatorLogLines)
-				if err == nil {
-					operatorLogs = strings.Join(lines, "\n")
-				} else {
-					operatorLogs = fmt.Sprintf("Failed getting the latest operator logs: %v\n", err)
-				}
-				return fmt.Sprintf("CLUSTER STATE\n%s\n\nK8S NODES\n%s\n\nOPERATOR LOGS\n%s",
-					cluster, nodes, operatorLogs)
+				return fmt.Sprintf("CLUSTER STATE\n%s\n\nK8S NODES\n%s",
+					cluster, nodes)
 			})
 		GinkgoWriter.Println("Cluster ready, took", time.Since(start))
 	})
