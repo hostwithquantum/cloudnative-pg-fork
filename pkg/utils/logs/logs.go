@@ -65,7 +65,8 @@ func GetPodLogs(ctx context.Context, pod corev1.Pod, getPrevious bool, writer io
 	conf := ctrl.GetConfigOrDie()
 	pods := kubernetes.NewForConfigOrDie(conf).CoreV1().Pods(pod.Namespace)
 	logsRequest := pods.GetLogs(pod.Name, &corev1.PodLogOptions{
-		Previous: getPrevious,
+		Previous:   getPrevious,
+		Timestamps: true,
 	})
 	logStream, err := logsRequest.Stream(ctx)
 	if err != nil {
