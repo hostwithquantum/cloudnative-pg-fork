@@ -20,8 +20,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"k8s.io/apimachinery/pkg/types"
 	"path"
 	"reflect"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"time"
 
 	"github.com/robfig/cron"
@@ -135,7 +137,7 @@ func RenewLeafCertificate(caSecret *v1.Secret, secret *v1.Secret) (bool, error) 
 // Setup ensures that we have the required PKI infrastructure to make the operator and the clusters working
 func (pki *PublicKeyInfrastructure) Setup(
 	ctx context.Context,
-	clientSet *kubernetes.Clientset,
+	clientSet client.Client,
 	apiClientSet *apiextensionsclientset.Clientset,
 ) error {
 	err := retry.OnError(retry.DefaultRetry, func(err error) bool {
@@ -158,10 +160,12 @@ func (pki *PublicKeyInfrastructure) Setup(
 // ensureRootCACertificate ensure that in the cluster there is a root CA Certificate
 func (pki *PublicKeyInfrastructure) ensureRootCACertificate(
 	ctx context.Context,
-	client kubernetes.Interface,
+	client client.Client,
 ) (*v1.Secret, error) {
+
+	secret := &v1.Secret{}
 	// Checking if the root CA already exist
-	secret, err := client.CoreV1().Secrets(pki.OperatorNamespace).Get(ctx, pki.CaSecretName, metav1.GetOptions{})
+	err := client.Get(ctx, types.NamespacedName{Namespace: pki.OperatorNamespace, Name: pki.CaSecretName}, secret)
 	if err == nil {
 		// Verify the temporal validity of this CA and renew the secret if needed
 		secret, err = renewCACertificate(ctx, client, secret)
@@ -186,16 +190,16 @@ func (pki *PublicKeyInfrastructure) ensureRootCACertificate(
 		return nil, err
 	}
 
-	createdSecret, err := client.CoreV1().Secrets(pki.OperatorNamespace).Create(ctx, secret, metav1.CreateOptions{})
+	err = client.Create(ctx, secret)
 	if err != nil {
 		return nil, err
 	}
-	return createdSecret, nil
+	return secret, nil
 }
 
 // renewCACertificate renews a CA certificate if needed, returning the updated
 // secret if the secret has been renewed
-func renewCACertificate(ctx context.Context, client kubernetes.Interface, secret *v1.Secret) (*v1.Secret, error) {
+func renewCACertificate(ctx context.Context, client client.Client, secret *v1.Secret) (*v1.Secret, error) {
 	// Verify the temporal validity of this CA
 	pair, err := ParseCASecret(secret)
 	if err != nil {
@@ -221,19 +225,19 @@ func renewCACertificate(ctx context.Context, client kubernetes.Interface, secret
 	}
 
 	secret.Data[CACertKey] = pair.Certificate
-	updatedSecret, err := client.CoreV1().Secrets(secret.Namespace).Update(ctx, secret, metav1.UpdateOptions{})
+	err = client.Update(ctx, secret)
 	if err != nil {
 		return nil, err
 	}
 
-	return updatedSecret, nil
+	return secret, nil
 }
 
 // ensureCertificatesAreUpToDate will setup the PKI infrastructure that is needed for the operator
 // to correctly work and makes sure that the mounted certificates are the latest.
 func (pki PublicKeyInfrastructure) ensureCertificatesAreUpToDate(
 	ctx context.Context,
-	client kubernetes.Interface,
+	client client.Client,
 	apiClient apiextensionsclientset.Interface,
 ) error {
 	caSecret, err := pki.ensureRootCACertificate(

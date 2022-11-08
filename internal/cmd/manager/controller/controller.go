@@ -21,14 +21,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"net/http"
 	"net/http/pprof"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"time"
 
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -54,6 +56,7 @@ var (
 	// clientSet is the kubernetes client used during
 	// the initialization of the operator
 	clientSet *kubernetes.Clientset
+	kclient   client.Client
 
 	// apiClientSet is the kubernetes client set with
 	// support for the apiextensions that is used
@@ -209,7 +212,7 @@ func RunController(
 	}
 
 	// Retrieve the Kubernetes cluster system UID
-	if err = utils.DetectKubeSystemUID(ctx, clientSet); err != nil {
+	if err = utils.DetectKubeSystemUID(ctx, kclient); err != nil {
 		setupLog.Error(err, "unable to retrieve the Kubernetes cluster system UID")
 		return err
 	}
@@ -348,6 +351,10 @@ func readinessProbeHandler(w http.ResponseWriter, _r *http.Request) {
 // the operator initialization
 func createKubernetesClient(config *rest.Config) error {
 	var err error
+	kclient, err = client.New(config, client.Options{Scheme: scheme})
+	if err != nil {
+		return fmt.Errorf("cannot create a K8s client: %w", err)
+	}
 	clientSet, err = kubernetes.NewForConfig(config)
 	if err != nil {
 		return fmt.Errorf("cannot create a K8s client: %w", err)
@@ -407,10 +414,8 @@ func readConfigMap(ctx context.Context, namespace, name string) (map[string]stri
 		"namespace", namespace,
 		"name", name)
 
-	configMap, err := clientSet.CoreV1().ConfigMaps(namespace).Get(ctx, name, metav1.GetOptions{})
-	if apierrs.IsNotFound(err) {
-		return nil, nil
-	}
+	configMap := &corev1.ConfigMap{}
+	err := kclient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, configMap)
 	if err != nil {
 		return nil, err
 	}
@@ -432,7 +437,8 @@ func readSecret(ctx context.Context, namespace, name string) (map[string]string,
 		"namespace", namespace,
 		"name", name)
 
-	secret, err := clientSet.CoreV1().Secrets(namespace).Get(ctx, name, metav1.GetOptions{})
+	secret := &corev1.Secret{}
+	err := kclient.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, secret)
 	if apierrs.IsNotFound(err) {
 		return nil, nil
 	}
