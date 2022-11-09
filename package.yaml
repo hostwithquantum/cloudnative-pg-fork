@@ -1,0 +1,7 @@
+meta:
+  description:  rpm build for kubectl-cnpg plugin
+  vendor: cnpg
+files:
+  "/usr/bin/kubectl-cnpg":
+    file: kubectl-cnpg
+    mode: "0755"
